@@ -39,10 +39,13 @@ The line is: **the exchange decides whether money may move; FNM decides how it m
 | Phase | Networks | Family |
 | --- | --- | --- |
 | First | Bitcoin, Ethereum (ETH, USDT, USDC, WBTC), TRON (TRX, USDT) | UTXO, EVM, TRON |
-| Next | BNB Smart Chain, Polygon, Arbitrum, Litecoin, Dogecoin | EVM, UTXO (same adapters, new configuration) |
-| Later | Networks with memos or tags (XRP, TON, Stellar), Solana | New adapter families |
+| Second | BNB Smart Chain, Polygon, Arbitrum, Litecoin, Dogecoin | EVM, UTXO (same adapters, new configuration) |
+| Third | TON (TON, USDT jetton), XRP, Stellar | Memo family: one shared deposit account per network, a memo or tag per user ([06](06-address-management.md#memo-and-tag-networks)) |
+| Fourth | Solana | A family of its own |
 
-The first set matches the networks of the exchange's `config/assets.yaml`.
+The first set matches the networks of the exchange's `config/assets.yaml`. The order was decided in [#69](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/69). The memo model (an address **plus** an optional memo) is part of every type, table, and API from the first migration, so that the third phase adds adapters and nodes, not a schema change.
+
+FNM owns the whole custody of every network, TRON included: the exchange has not gone live, so its TRON custody code is removed rather than migrated ([#12](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/12)).
 
 ## Principles
 
@@ -58,6 +61,8 @@ The first set matches the networks of the exchange's `config/assets.yaml`.
 | Term | Meaning |
 | --- | --- |
 | Deposit address | An address derived for, and allocated to, one user on one network |
+| Memo (tag) | A value attached to a transfer on networks such as XRP (destination tag), Stellar (memo), and TON (comment), which identifies the user when many users share one deposit address |
+| Destination | An address plus an optional memo; everything in FNM that names where funds go or come from is a destination, never a bare address |
 | Hot wallet | The wallet that pays withdrawals automatically, within caps |
 | Warm wallet | A wallet that signs only with a staff approval (two people), used to refill the hot wallet |
 | Cold storage | Keys kept offline or in an HSM/multisig that FNM can send to but never from |

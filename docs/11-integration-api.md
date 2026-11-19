@@ -16,9 +16,9 @@ The API that the exchange server calls, and the events FNM publishes. Users neve
 | Route | Purpose |
 | --- | --- |
 | `GET /v1/networks` | Networks, their assets, finality, state (`active`, `degraded`, `paused`), minimums |
-| `POST /v1/addresses/allocate` | `{owner_ref, family}` → address, network list, signature |
+| `POST /v1/addresses/allocate` | `{owner_ref, family}` → address, memo (empty except on memo networks), network list, signature over both |
 | `GET /v1/addresses/{address}` | Owner reference, status, path, for support |
-| `POST /v1/addresses/validate` | `{network, address}` → valid, normalized form, warnings (contract, our own address) |
+| `POST /v1/addresses/validate` | `{network, address, memo}` → valid, normalized form, whether a memo is required, warnings (contract, our own address) |
 | `GET /v1/deposits?owner_ref=&status=&cursor=` | Deposits |
 | `POST /v1/deposits/{id}/ack` | The exchange credited it |
 | `POST /v1/withdrawals` | Request a payment ([08](08-withdrawals.md)) |
@@ -55,11 +55,14 @@ Every admin request carries `X-FNM-Actor` (staff id) and the exchange's step-up 
 
 Every event has `event_id` (for deduplication), `occurred_at`, `version`, and FNM's signature. Delivery is at least once, through the transactional outbox.
 
-## Migration of the exchange
+## Takeover of the exchange's custody
 
-1. FNM runs TRON in **shadow mode**: it scans and detects deposits next to the exchange's watcher; results are compared, not acted upon.
-2. The exchange's `internal/deposits` allocation calls FNM; the existing addresses are imported (see [06](06-address-management.md)).
-3. The exchange switches TRON crediting to `DepositFinalized` and withdrawals to `POST /v1/withdrawals`; `internal/tron` and `cmd/tron-signer` are retired from the exchange.
-4. Bitcoin and Ethereum start on FNM directly.
+The exchange has not gone live, so FNM takes over its custody entirely, with no shadow mode and no import ([#12](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/12), [#65](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/65)):
 
-The changes on the exchange side are tracked as issues in the exchange repository, linked from this repository's integration epic.
+1. The exchange removes its chain code: `cmd/tron-signer`, `internal/tronsigner`, `internal/tron`, the xpub derivation of `internal/deposits`, and the `custody.providers` configuration with its node URLs and keys.
+2. `internal/deposits` keeps the user-facing part (listing a user's addresses and deposits) and gets them from FNM: allocation through `POST /v1/addresses/allocate`, deposits from the events.
+3. The ledger credits on `DepositFinalized`, and withdrawals call `POST /v1/withdrawals` after the exchange's own checks; payouts on chain report back through the withdrawal events.
+4. The exchange stores and shows the memo with every deposit address and asks for it on withdrawals to memo networks.
+5. Every network, TRON included, starts on FNM's own seeds and nodes.
+
+The changes on the exchange side are filed as issues in the exchange repository and linked from the integration epic.

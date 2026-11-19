@@ -50,7 +50,7 @@ flowchart LR
 | Signer | `cmd/fnm-signer` (one deployment per family, each on its own host) | Yes | Vault/HSM; called only by the worker |
 | Node monitor | part of `cmd/fnm-worker` | No | Nodes, reference providers |
 | Operator CLI | `cmd/fnmctl` | No (except offline ceremony commands) | PostgreSQL, API |
-| Nodes | Bitcoin Core, Geth + Lighthouse, java-tron | No | Peer-to-peer network |
+| Nodes | Bitcoin Core, Geth + Lighthouse, java-tron; later rippled, stellar-core, TON | No | Peer-to-peer network |
 
 Why separate processes: the scanner of one network must not slow another; the API must keep answering while a long sweep runs; and the signer must be small enough to audit and must run where nothing else runs.
 
@@ -88,7 +88,7 @@ cmd/
   fnm-signer/      signer, built per family (utxo, evm, tron)
   fnmctl/          operator CLI, migrations, ceremonies
 internal/
-  chain/           the adapter interface and its families: utxo/, evm/, tron/
+  chain/           the adapter interface and its families: utxo/, evm/, tron/, and the memo family: ton/, xrp/, stellar/
   nodes/           node registry, health, selection, failover
   addresses/       derivation, pool, allocation
   deposits/        scanning, confirmations, reorgs
@@ -105,7 +105,7 @@ deploy/
 docs/
 ```
 
-Code shared with the exchange (row seals, outbox, data-key handling, audit) is first copied and adapted; extracting a common Go module is a later decision (see [14-open-questions.md](14-open-questions.md)).
+Code shared with the exchange (row seals, outbox, data-key handling, audit) is copied and adapted, not imported: FNM has no build-time dependency on the exchange, so a change or a compromised dependency there cannot reach the custody ([#70](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/70)).
 
 ## Technology
 
@@ -116,5 +116,5 @@ Code shared with the exchange (row seals, outbox, data-key handling, audit) is f
 | Messaging | RabbitMQ with a transactional outbox | Same as the exchange; events survive restarts |
 | Service API | REST + JSON over mTLS, requests signed with Ed25519, idempotency keys | Consistent with `cmd/tron-signer`; easy to audit |
 | Keys | Vault or OpenBao Transit to unwrap seeds; HSM later | Same as the exchange's data-protection keys |
-| Nodes | Docker Compose per node host; Kubernetes later | Simple to start, reproducible |
+| Nodes | Docker Compose per dedicated host | Fewest moving parts and the smallest attack surface; one node per host already gives the isolation an orchestrator would add ([#70](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/70)) |
 | Observability | slog, Prometheus, OpenTelemetry | Same as the exchange |

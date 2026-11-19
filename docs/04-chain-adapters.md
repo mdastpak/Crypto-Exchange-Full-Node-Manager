@@ -10,7 +10,8 @@ type Adapter interface {
 
     // Addresses (public keys only).
     DeriveAddress(xpub ExtendedPublicKey, path DerivationPath) (Address, error)
-    ValidateAddress(s string) (Address, error)          // checksum, network, type; rejects own contracts where needed
+    ValidateDestination(addr string, memo *string) (Destination, error) // checksum, network, type, memo format; rejects own contracts where needed
+    MemoRule() MemoRule              // none, optional, or required; its format (uint32 tag, uint64 id, text up to N bytes)
 
     // Reading.
     Head(ctx context.Context) (BlockRef, error)
@@ -33,6 +34,8 @@ The signer has its own, smaller interface: it receives a `TxPlan`, **rebuilds an
 
 All amounts are integers in the asset's smallest unit (`big.Int`), never floats; conversion to decimals happens only at the edge, with the decimals from the asset registry.
 
+A `Destination` is `{Address, Memo}` with `Memo` empty on networks without memos. Every normalized `Transfer` carries the memo it was sent with, and every `TxPlan` output carries the memo to send. The UTXO, EVM, and TRON families always report an empty memo (TRON's free-form `data` field is never used to identify users), so the rest of FNM handles every family the same way.
+
 ## Families
 
 ### UTXO (Bitcoin, later Litecoin, Dogecoin)
@@ -54,11 +57,28 @@ All amounts are integers in the asset's smallest unit (`big.Int`), never floats;
 
 ### TRON (TRX, TRC-20)
 
-- Addresses: `m/44'/195'/0'/0/i`, Base58Check with the `0x41` prefix; the derivation paths of the exchange's existing custody are kept so that the addresses already given to users stay valid.
+- Addresses: `m/44'/195'/0'/0/i` from FNM's own TRON deposit seed, Base58Check with the `0x41` prefix. The exchange's earlier TRON seed is not used: it never went live ([#65](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/65)).
 - Scanning: blocks by `getblockbynum`, TRC-20 transfers from the transaction info logs; only the registry's contracts.
 - Resources: bandwidth and energy. Token transfers need energy; FNM either burns TRX within `fee_limit`, or (later) freezes TRX for energy on the hot wallet, or delegates energy to deposit addresses before sweeps, which is cheaper than sending TRX.
 - Finality: 19 confirmations (solidified blocks), as in the exchange today.
 - Transactions expire about 10 minutes after their reference block; an expired, unseen transaction is rebuilt and signed again under the same request.
+
+### Memo family (TON, XRP, Stellar)
+
+One shared deposit account per network receives every user's deposits; the memo identifies the user ([06](06-address-management.md#memo-and-tag-networks)).
+
+| | XRP Ledger | Stellar | TON |
+| --- | --- | --- | --- |
+| Memo | Destination tag, uint32 | Memo of type `ID` (uint64) | Text comment |
+| Deposit account flags | `RequireDest` set, so the ledger itself rejects payments without a tag; `DisallowXRP` not set | None available; missing memos are held | None available; missing comments are held |
+| Trusted amount | `meta.delivered_amount` only, never `Amount`: **partial payments** can deliver far less than `Amount` | The operation's amount; path payments by their received amount | The amount of the incoming internal message; jettons by the transfer notification from **our own jetton wallet** for the registered jetton master, never a notification from another contract |
+| Tokens | Issued currencies by issuer and code, from the registry | Assets by issuer and code; trustlines established by ceremony | Jettons by master contract, from the registry |
+| Finality | Validated ledger | Closed ledger | Masterchain-confirmed block |
+| Reserves | Base and owner reserves kept on the account | Minimum balance per subentry | Storage fees; balance kept above a floor |
+| Derivation | `m/44'/144'/0'/0/i` (secp256k1) | SLIP-10 ed25519 `m/44'/148'/i'` | ed25519, wallet contract v4/v5 address |
+| Multisig (cold) | `SignerList` with a quorum | Account signers with thresholds | Multisig wallet contract |
+
+Failed and bounced transfers are never deposits; a TON transfer to a bounceable address that bounced is recorded with the bounce.
 
 ## Test strategy
 

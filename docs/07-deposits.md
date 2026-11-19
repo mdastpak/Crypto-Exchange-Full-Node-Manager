@@ -53,3 +53,5 @@ Before a deposit becomes final, if its value is above `witness_threshold` (confi
 - **Failed transactions** (EVM status 0, TRON `REVERT`) are never deposits.
 - **Fake tokens**: a `Transfer` event from a contract that is not the registered one is ignored, whatever its symbol.
 - **Several outputs or logs in one transaction**: each is a deposit of its own, keyed by its index.
+- **Memo networks**: a deposit is attributed by the pair `(deposit account, memo)`; a missing, unknown, or malformed memo is held (`memo_missing`, `memo_unknown`, `memo_invalid`), see [06](06-address-management.md#deposits-without-a-valid-memo). The amount is the amount **delivered** (XRP `delivered_amount`), never the amount requested, so partial payments cannot inflate a deposit. TON jettons are accepted only from the notification of our own jetton wallet of a registered master.
+- **Deposit events carry the memo**, and the deposit's unique key includes it.

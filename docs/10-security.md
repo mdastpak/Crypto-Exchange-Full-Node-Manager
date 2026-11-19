@@ -20,6 +20,7 @@
 | Replay of API or signer requests | mTLS plus Ed25519 request signatures over method, path, body digest, timestamp, and nonce; nonces remembered for the timestamp window; idempotency keys |
 | Insider | Two-person approvals for warm moves, policy changes, and key ceremonies; append-only audit; least-privilege database roles; no single person holds enough Shamir shares |
 | Address poisoning, fake tokens | Registry-only assets, ignored zero-value and look-alike transfers, staff UI never offers addresses from the chain |
+| Memo attacks: partial payments, guessed or mistyped memos, missing memos, fake jetton notifications | Only delivered amounts credited; random memos in a large space, never reused; `RequireDest` on XRP; missing or unknown memos held, attributed only with two approvals; jettons only from our own jetton wallets; memo inside every signature and digest |
 | Denial of service on nodes | RPC private; P2P limits; two nodes per network; scanning stops safely and catches up |
 | Supply chain | Pinned images by digest, verified node releases (signatures and checksums), Go module checksums, Dependabot, reproducible builds of the signer |
 

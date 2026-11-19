@@ -8,7 +8,8 @@ A sweep moves a deposit address's balance to the hot wallet, or to warm or cold 
 | --- | --- |
 | UTXO | Not per address: the deposit UTXOs become inputs of the hot wallet directly (the signer holds both keys). They are spent by withdrawals or consolidated in quiet, low-fee periods into fewer UTXOs. |
 | EVM | Per address. Native ETH: send balance minus the exact fee. Tokens: the address needs ETH for gas, so a **top-up** from the hot wallet (the exact estimated gas) precedes the token transfer. |
-| TRON | Per address, as in the exchange today: top up TRX (or delegate energy, which is cheaper) before a TRC-20 sweep; tokens before TRX. |
+| TRON | Per address: top up TRX (or delegate energy, which is cheaper) before a TRC-20 sweep; tokens before TRX. |
+| Memo family | One shared deposit account per network: swept to the hot wallet above a threshold, always keeping the account's reserve (XRP base and owner reserve, Stellar minimum balance, TON storage floor). No per-user sweeps and no top-ups. |
 
 ### When to sweep
 
@@ -18,7 +19,7 @@ Each sweep is a state machine (`planned -> topping_up -> topped_up -> sweeping -
 
 ### Alternative for EVM: forwarder contracts
 
-Instead of EOAs, deposit addresses can be minimal forwarder contracts at CREATE2 addresses that the hot wallet sweeps in batches, without top-ups. It saves fees at scale but adds a contract that must be audited and differs per EVM network. It is an open decision; the first version uses EOAs.
+Instead of EOAs, deposit addresses can be minimal forwarder contracts at CREATE2 addresses that the hot wallet sweeps in batches, without top-ups. It saves fees at scale but adds contract code that holds user funds, must be audited per network, and can carry a bug that affects every address at once. **Decided: EOAs** ([#66](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/66)); the top-up cost is accepted in exchange for no custody code on chain.
 
 ## Treasury rebalancing
 

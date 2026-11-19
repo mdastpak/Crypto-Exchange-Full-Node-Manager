@@ -22,7 +22,23 @@ The sizes below are planning estimates as of late 2026; they grow every month. C
 | Ethereum | Execution: Geth (alternative Nethermind); Consensus: Lighthouse (alternative Teku) | Full (snap sync), not archive | 8+ cores / 32 GB | ~2–2.5 TB | Two clients per node, joined by a JWT secret. A minority client pair on the secondary node lowers the risk of one client's bug. `debug_traceBlockByNumber` must be enabled for ETH received through contracts (internal transfers). Checkpoint sync for the consensus client. |
 | TRON | java-tron FullNode | Full (or Lite FullNode for the secondary) | 16 cores / 32–64 GB | ~3 TB+ (full) | JVM settings per the java-tron documentation. HTTP API and gRPC on the private network. Start from an official snapshot to avoid weeks of sync; verify the snapshot's checksum. |
 
-EVM networks added later (BSC, Polygon, Arbitrum) follow the Ethereum pattern with their own clients; UTXO networks (Litecoin, Dogecoin) follow the Bitcoin pattern.
+EVM networks added later (BSC, Polygon, Arbitrum) follow the Ethereum pattern with their own clients; UTXO networks (Litecoin, Dogecoin) follow the Bitcoin pattern. The memo networks of the third phase:
+
+| Network | Client | Notes |
+| --- | --- | --- |
+| XRP Ledger | rippled (non-validating, full history not required) | Reads validated ledgers only; `delivered_amount` is the only trusted amount of a payment |
+| Stellar | stellar-core with Horizon (or Stellar RPC) and its own PostgreSQL | Captive core; Horizon on the private network |
+| TON | TON full node with a liteserver | Liteserver key on the private network; jettons read from the jetton wallets of our deposit account |
+
+## Hosting
+
+Decided in [#67](https://github.com/mdastpak/Crypto-Exchange-Full-Node-Manager/issues/67):
+
+- **Dedicated bare-metal servers**, never shared VMs, for nodes and signers: no neighbour on the same hypervisor, and full control of disks and firmware.
+- **Two independent data centres** from different operators. The primary and secondary node of each network are in different ones, so that one outage, one network cut, or one operator never stops a network.
+- **Signers** on their own dedicated servers, in a locked rack with access logging, apart from the node hosts; a hot standby is kept powered off and is started only by an operator. HSM support (PKCS#11) is planned for the hot keys.
+- **No dependency on a foreign cloud or a third-party API for correctness.** The witness of each network is a second own node running a **different client** where one exists (for example Nethermind + Teku against Geth + Lighthouse); external providers are added as extra witnesses only where they are reachable and lawful to use, never as the only one.
+- Before ordering hardware for a network, its P2P connectivity from each data centre is tested (peer count and sync speed on a test host), because a node that cannot reach enough peers is easier to isolate and feed a false chain.
 
 ## Deployment layout
 

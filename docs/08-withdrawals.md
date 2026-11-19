@@ -10,7 +10,8 @@ The exchange decides whether a withdrawal may happen (second factor, limits, AML
 | --- | --- |
 | `idempotency_key` | Unique per withdrawal; a repeat returns the same withdrawal; a different body with the same key is `409` |
 | `network`, `asset` | From the registry |
-| `to` | Destination, validated by the adapter; memo or tag where the network needs it |
+| `to` | Destination address, validated by the adapter |
+| `memo` | Memo or tag; validated against the network's format. Required when the destination is known to need one (below) |
 | `amount` | Integer, smallest unit |
 | `fee_policy` | `normal` or `priority`; the exchange has already charged the user its fee |
 | `exchange_approval` | The exchange's approval record id; for amounts above the review threshold, the ids of the approving staff |
@@ -28,6 +29,13 @@ received -> validated -> planned -> signing -> signed -> broadcast -> confirming
 4. **Sign**: send the plan to the signer, which rebuilds, checks policy, signs, and records it. The signed transaction is stored before it is broadcast.
 5. **Broadcast** through at least two healthy nodes (and a provider if configured). A broadcast error that means "already known" is success.
 6. **Track** until finality; emit `WithdrawalBroadcast` (with tx id), `WithdrawalConfirmed`, or `WithdrawalFailed`.
+
+## Memos on withdrawals
+
+- The memo is part of the destination everywhere: in the request digest, the plan, the signer's rebuild, and the idempotency check. A plan whose memo differs from the request is refused by the signer.
+- **Required memos**: a registry of addresses known to need a memo (the shared deposit accounts of other exchanges and custodians, kept by FNM and editable with two approvals), and, on XRP, the `RequireDest` flag read from the destination account. A withdrawal to such an address without a memo is refused (`memo_required`), because the funds would be lost or stuck.
+- A memo given for a network that has none is refused, not dropped silently.
+- A withdrawal to one of our own deposit accounts with one of our memos is an internal transfer and is refused: the exchange settles it in its ledger.
 
 ## Stuck and failed transactions
 

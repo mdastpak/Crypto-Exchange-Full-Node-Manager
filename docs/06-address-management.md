@@ -53,8 +53,32 @@ Addresses are never deleted, and a retired address is never reallocated to someo
 - **Address poisoning**: a deposit of zero value, or of a token not in the registry, from an address resembling one of our hot wallets is ignored and never shown to staff as an address to send to.
 - **Checksum and network** are checked on every address that crosses the API in either direction.
 - **Display integrity**: the address returned to the exchange carries a signature (FNM's Ed25519 key over network, address, owner_ref) that the exchange stores and the user-facing app can verify, so that a tampered exchange database cannot silently change a user's deposit address.
-- **Memo/tag networks** (later): one shared address with a unique memo per user; the memo is allocated the same way.
+- The signature covers the memo as well, so a changed memo is detected like a changed address.
 
-## Migration of existing TRON addresses
+## Memo and tag networks
 
-The exchange's existing deposit addresses (derived from the same xpub, one per user) are imported as `allocated` with their indexes, each re-derived and checked; the pool for TRON starts above the highest imported index.
+On TON, XRP, and Stellar, one deposit account per network is shared by every user, and the **memo** says whose deposit it is. This avoids one funded account per user (XRP and Stellar require a reserve per account; TON charges storage) and needs no sweeps from user addresses. The design is in place from the first migration: every address column has a memo column next to it, and every API field that is an address is a destination.
+
+### Allocation
+
+`POST /v1/addresses/allocate {owner_ref, family}` answers `{address, memo}`; on other families `memo` is empty.
+
+1. The memo is drawn **at random** with `crypto/rand`, in the network's format: XRP destination tag in `[1_000_000, 4_294_967_295]`, Stellar memo ID in `[10^9, 2^63)`, TON comment as a fixed-length string of digits (12 characters, so users can type it and no text normalization applies). Low values are skipped because users mistype short tags and other services use them.
+2. A unique index on `(network, deposit_account, memo)` makes a collision impossible; on the rare conflict the draw is repeated.
+3. **A memo is never reused**, even after its owner leaves: a user who later sends to an old memo must not credit someone else. A retired memo stays attributed to its owner.
+4. A memo is per network, not per family, because the formats differ.
+5. The `(address, memo)` pair is sealed and signed together.
+
+### Why random and not sequential
+
+Sequential tags reveal the number of users and let an attacker guess other users' tags; a mistyped sequential tag is likely to be another real user's. Random tags in a large space make a typo almost always land on no one, so the deposit is held instead of credited to a stranger.
+
+### Deposits without a valid memo
+
+- **XRP**: the deposit account has `RequireDest` set, so the ledger rejects payments without a tag.
+- **Stellar and TON**, and a tag that matches no one on XRP: the deposit is detected and **held** with reason `memo_missing` or `memo_unknown`. Staff can attribute it to a user only through a two-person approval with evidence (the sender proves the transaction), or return it to the sender address, also with two approvals.
+- A memo of the wrong type (for example a Stellar `TEXT` memo with a number in it) is held as `memo_invalid`, never parsed loosely.
+
+### Treasury on memo networks
+
+The shared deposit account is swept to the hot wallet above a threshold, keeping its reserve, and the hot wallet to cold storage above its cap, as on the other families ([09](09-sweeps-and-treasury.md)).
