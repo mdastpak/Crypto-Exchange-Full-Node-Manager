@@ -43,7 +43,7 @@ done
 
 if [ $# -ge 1 ]; then
 	base="$1"
-	added="$(git diff --name-only --diff-filter=AR "$base"...HEAD -- "$dir" | grep -v -e '/README\.md$' -e '/\.gitkeep$' || true)"
+	added="$(git diff --name-only --diff-filter=AR "$base"...HEAD -- "$dir" | grep -v -e '/README\.md$' -e '/\.[^/]*$' || true)"
 	if [ -z "$added" ]; then
 		echo "error: no changelog fragment added since $base."
 		echo "Add changelog.d/<issue>.<type>.md, or label the pull request \"no changelog\""
