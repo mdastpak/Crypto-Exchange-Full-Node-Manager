@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOVULNCHECK_VERSION: v1.9.0
+
+jobs:
+  go:
+    name: go
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: go mod tidy
+        run: |
+          go mod tidy -diff
+      - name: go vet
+        run: go vet ./...
+      - name: go build
+        run: go build ./...
+      - name: go test
+        run: go test -race -count=1 ./...
+
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: govulncheck
+        run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
+
+  markdown:
+    name: markdown
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34 # v25.0.0
+        with:
+          globs: "**/*.md"
+
+  changelog:
+    name: changelog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check changelog fragments
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SKIP_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'no changelog') }}
+        run: |
+          if [ -n "$BASE_SHA" ] && [ "$SKIP_LABEL" != "true" ]; then
+            scripts/check-changelog.sh "$BASE_SHA"
+          else
+            scripts/check-changelog.sh
+          fi
+
+  docker:
+    name: docker (${{ matrix.binary }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        binary: [fnm-api, fnm-worker, fnm-scanner, fnm-signer, fnmctl]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: docker build
+        env:
+          BINARY: ${{ matrix.binary }}
+        run: docker build -f "deploy/fnm/${BINARY}/Dockerfile" -t "fnm/${BINARY}:ci" .
+      - name: Image runs as non-root
+        env:
+          BINARY: ${{ matrix.binary }}
+        run: |
+          user="$(docker image inspect -f '{{.Config.User}}' "fnm/${BINARY}:ci")"
+          echo "user: ${user}"
+          case "$user" in
+            ""|0|0:*|root|root:*) echo "image runs as root"; exit 1 ;;
+          esac

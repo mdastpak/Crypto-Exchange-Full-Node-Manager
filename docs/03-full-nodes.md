@@ -76,11 +76,11 @@ The node monitor polls each node every few seconds and records:
 | --- | --- | --- | --- |
 | Synced | `getblockchaininfo.initialblockdownload == false`, `verificationprogress` | `eth_syncing == false`; consensus `/eth/v1/node/syncing` | `getnodeinfo` and block height |
 | Head | `getbestblockhash` and height | `eth_blockNumber`, `latest` and `finalized` blocks | `getnowblock` |
-| Lag | Head height against the highest head of our other nodes and of the reference providers |
+| Lag | Head height against the highest head of our other nodes and of the reference providers | | |
 | Peers | `getconnectioncount` | `net_peerCount`, consensus peers | `listnodes` |
-| Fork | The hash at a recent height compared across nodes and providers |
-| Latency and errors | Per RPC call, by method |
-| Disk | Free space from node-exporter |
+| Fork | The hash at a recent height compared across nodes and providers | | |
+| Latency and errors | Per RPC call, by method | | |
+| Disk | Free space from node-exporter | | |
 
 A node is **healthy** when it is synced, its head is within the network's lag threshold (for example 2 blocks for Bitcoin, 3 for Ethereum, 5 for TRON), its hash at `head - k` matches the majority, and its error rate is low. The scanner and the worker always read through the **node selector**, which returns the healthiest primary-role node and fails over to the next. When no own node is healthy:
 

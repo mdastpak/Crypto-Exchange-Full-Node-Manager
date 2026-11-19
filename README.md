@@ -35,7 +35,7 @@ The same stack as the exchange, so that code, operations, and reviews carry over
 
 ## Contributing
 
-All code, comments, and documentation are in English. Every change links its issue, and changes to keys, signers, or policies need the security review of the pull request template.
+All code, comments, and documentation are in English. Every change links its issue, and changes to keys, signers, or policies need the security review of the pull request template. See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, commit messages, changelog fragments, and the CI checks.
 
 ## License
 

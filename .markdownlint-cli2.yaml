@@ -1,0 +1,12 @@
+# Markdown lint for every .md file in the repository, run by CI.
+config:
+  default: true
+  # The documents keep one paragraph per line.
+  MD013: false
+  # Repeated headings are fine in different sections, as in the changelog.
+  MD024:
+    siblings_only: true
+ignores:
+  # Templates start with section headings that GitHub fills in, not a title.
+  - ".github/**"
+  - "node_modules/**"

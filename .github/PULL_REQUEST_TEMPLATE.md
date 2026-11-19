@@ -18,7 +18,9 @@ Fixes #
 
 ## Checklist
 
-- [ ] `gofmt -l .` is empty; `go vet ./...`, `go build ./...`, and `go test ./...` pass.
+- [ ] `gofmt -l .` is empty; `go vet ./...`, `go build ./...`, and `go test -race ./...` pass.
+- [ ] A fragment is added in `changelog.d/`, or the pull request has the `no changelog` label.
 - [ ] Migrations have up and down files; no merged migration was modified.
 - [ ] Documentation in `docs/` is updated when behaviour or configuration changes.
 - [ ] All code, comments, and text are in English.
+- [ ] Commit messages follow [CONTRIBUTING.md](../CONTRIBUTING.md#commit-messages).
