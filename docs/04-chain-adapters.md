@@ -1,0 +1,68 @@
+# 04. Chain adapters
+
+Every network is reached through one Go interface, implemented once per family. The rest of FNM never imports a chain library.
+
+## The interface (sketch)
+
+```go
+type Adapter interface {
+    Network() NetworkID
+
+    // Addresses (public keys only).
+    DeriveAddress(xpub ExtendedPublicKey, path DerivationPath) (Address, error)
+    ValidateAddress(s string) (Address, error)          // checksum, network, type; rejects own contracts where needed
+
+    // Reading.
+    Head(ctx context.Context) (BlockRef, error)
+    Block(ctx context.Context, height uint64) (Block, error)          // normalized transfers to and from watched addresses
+    Transaction(ctx context.Context, id TxID) (TxStatus, error)
+    Balance(ctx context.Context, addr Address, asset AssetID) (Amount, error)
+
+    // Writing (no keys).
+    EstimateFee(ctx context.Context, req FeeRequest) (FeeQuote, error)
+    BuildUnsigned(ctx context.Context, plan TxPlan) (UnsignedTx, error)   // fully specified: inputs/nonce, outputs, fee
+    Broadcast(ctx context.Context, signed SignedTx) (TxID, error)
+
+    // Rules.
+    Finality() FinalityRule          // confirmations, or the network's finalized tag
+    ReorgDepth() uint64              // how far back to keep block hashes
+}
+```
+
+The signer has its own, smaller interface: it receives a `TxPlan`, **rebuilds and checks the transaction itself** (so a compromised worker or node cannot make it sign something else), signs, and returns the signed bytes. This mirrors what `cmd/tron-signer` does in the exchange today.
+
+All amounts are integers in the asset's smallest unit (`big.Int`), never floats; conversion to decimals happens only at the edge, with the decimals from the asset registry.
+
+## Families
+
+### UTXO (Bitcoin, later Litecoin, Dogecoin)
+
+- Addresses: native SegWit P2WPKH (BIP84, `m/84'/0'/0'/0/i`). Taproot (BIP86) can be added for change and cold outputs later. Withdrawals accept every standard type (P2PKH, P2SH, P2WPKH, P2WSH, P2TR).
+- Scanning: each block's outputs are matched against the set of watched scripts held in memory (refreshed on allocation); spends of our UTXOs are matched by outpoint.
+- FNM keeps its own UTXO set per wallet, with states `unconfirmed`, `confirmed`, `reserved` (planned for a transaction), `spent`.
+- Fees: `estimatesmartfee` from our node, bounded by a configured floor and ceiling, compared with a provider's estimate; RBF enabled on every transaction; CPFP for stuck incoming sweeps.
+- Finality: 3 confirmations by default for crediting (configurable per amount: larger amounts need more), 6 for our own UTXOs to be spendable by withdrawals.
+
+### EVM (Ethereum, later BSC, Polygon, Arbitrum)
+
+- Addresses: BIP44 `m/44'/60'/0'/0/i`, EIP-55 checksums enforced on input when mixed-case.
+- Scanning: native ETH by block transactions plus `debug_traceBlockByNumber` for internal transfers; tokens by `eth_getLogs` for the `Transfer` topic of the configured contracts, filtered locally by watched address. Only tokens in the asset registry are ever credited.
+- Finality: Ethereum's `finalized` block tag (about two epochs); for EVM networks without such a tag, a confirmation count.
+- Nonces: FNM is the only sender of its hot wallets; it allocates nonces from its own table under a row lock, never from `eth_getTransactionCount(pending)` alone, and detects gaps.
+- Fees: EIP-1559 (`maxFeePerGas`, `maxPriorityFeePerGas`) from `eth_feeHistory`, with ceilings; replacement by the same nonce with at least +10 percent fees for stuck transactions.
+- Token decimals and contract addresses come from the registry, never from the chain at run time.
+
+### TRON (TRX, TRC-20)
+
+- Addresses: `m/44'/195'/0'/0/i`, Base58Check with the `0x41` prefix; the derivation paths of the exchange's existing custody are kept so that the addresses already given to users stay valid.
+- Scanning: blocks by `getblockbynum`, TRC-20 transfers from the transaction info logs; only the registry's contracts.
+- Resources: bandwidth and energy. Token transfers need energy; FNM either burns TRX within `fee_limit`, or (later) freezes TRX for energy on the hot wallet, or delegates energy to deposit addresses before sweeps, which is cheaper than sending TRX.
+- Finality: 19 confirmations (solidified blocks), as in the exchange today.
+- Transactions expire about 10 minutes after their reference block; an expired, unseen transaction is rebuilt and signed again under the same request.
+
+## Test strategy
+
+- Unit tests with recorded node responses for each family.
+- Integration tests against regtest (Bitcoin), a dev chain (Geth `--dev` or Anvil), and a TRON private network or Nile, run in CI with Docker.
+- Property tests for UTXO selection and nonce allocation.
+- A reorg test per family: produce a fork on the regtest or dev chain and check that deposits are rolled back and re-detected.
