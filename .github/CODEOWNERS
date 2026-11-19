@@ -1,0 +1,21 @@
+# Owners must approve changes to the paths below once branch protection
+# requires code owner reviews. The last matching line wins.
+
+# Default
+*                         @mdastpak
+
+# Build, CI, and images
+/.github/                 @mdastpak @gdastpak
+/deploy/                  @mdastpak @gdastpak
+/scripts/                 @mdastpak @gdastpak
+
+# Custody-critical: signer, signing policies, keys, and migrations.
+# Only the custody owner may approve these.
+/cmd/fnm-signer/          @mdastpak
+/deploy/fnm/fnm-signer/   @mdastpak
+/internal/signer/         @mdastpak
+/internal/policy/         @mdastpak
+/internal/keys/           @mdastpak
+**/migrations/            @mdastpak
+/.github/CODEOWNERS       @mdastpak
+/.github/workflows/       @mdastpak

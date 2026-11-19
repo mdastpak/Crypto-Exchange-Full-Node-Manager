@@ -1,0 +1,7 @@
+# Replaces the root configuration for this directory, so it repeats its rules.
+default: true
+MD013: false
+MD024:
+  siblings_only: true
+# Fragments are plain sentences, collected under headings at release time.
+MD041: false
